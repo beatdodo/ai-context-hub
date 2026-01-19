@@ -31,4 +31,9 @@
 │   ├── project-init/         # 新專案開局用的 AI 設定懶人包
 │   └── role-play/            # 特殊角色設定 (e.g., 資深架構師, Code Reviewer)
 │
+└── projects/                 # [應用層] 公司或特定專案的專屬 Context
+    └── mbs-web/              # 專案名稱
+        ├── GEMINI.md         # <--- 你上傳的檔案放在這裡
+        └── architecture.md   # (選用) 補充該專案的架構圖或業務邏輯
+│
 └── docs/                     # 筆記與心得 (Prompt Engineering Notes)

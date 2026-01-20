@@ -78,8 +78,9 @@ import { UserCardComponent } from '@mbs/components'
 ### Angular 20 新語法
 - 使用 `@if {}`, `@for {}` 區塊語法（取代 `*ngIf`, `*ngFor`）
 - 使用 `input()`, `output()` 函數語法（取代 `@Input()`, `@Output()`）
-- 使用 `viewChild()` Signal-based 查詢（取代 `@ViewChild()`）
+- 使用 `viewChild()`, `viewChildren()` Signal-based 查詢（取代 `@ViewChild()`, `@ViewChildren()`）
 - 全面使用 Standalone Components（不使用 NgModules）
+- **禁止**使用 `document.querySelector()` 或 `document.querySelectorAll()`，改用 `viewChild()` 或 `viewChildren()` 保持 Angular 的封裝性與變更偵測機制
 
 ### 元件成員宣告順序
 元件內的成員應依照以下順序宣告，並使用 `#region` 標註分組：
@@ -130,6 +131,26 @@ export class XxxComponent {
     // Computed & Methods
 }
 ```
+
+### 功能模組目錄結構
+各功能模組內部的目錄結構：
+```
+feature/
+├── services/
+│   └── feature.service.ts          # API 呼叫（處理 HTTP 請求、資料轉換）
+├── utils/
+│   ├── feature-status.util.ts      # 純工具函數（無狀態、無 DI）
+│   └── feature-util.service.ts     # 工具 Service（需要 DI 或有命名空間需求）
+├── models/
+│   └── feature.model.ts            # 介面與型別定義
+└── components/
+```
+
+**命名規則**：
+- API 相關 Service：`xxx.service.ts`
+- 純工具函數：`xxx.util.ts`（export function）
+- 工具 Service：`xxx-util.service.ts`（@Injectable）
+- 統一使用 `utils/` 資料夾（不使用 `helpers/`）
 
 ### 設計原則
 - **單一職責 (SRP)**：每個函數、組件只負責一件事

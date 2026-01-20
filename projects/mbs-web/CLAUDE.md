@@ -81,6 +81,56 @@ import { UserCardComponent } from '@mbs/components'
 - 使用 `viewChild()` Signal-based 查詢（取代 `@ViewChild()`）
 - 全面使用 Standalone Components（不使用 NgModules）
 
+### 元件成員宣告順序
+元件內的成員應依照以下順序宣告，並使用 `#region` 標註分組：
+
+**有 inject 的元件：**
+```typescript
+export class XxxComponent {
+    //#region Injections & Services
+    private serv = inject(XxxService)
+    //#endregion
+
+    //#region Enums & Constants
+    protected readonly PrivilegeCodes = PrivilegeCodes
+    protected readonly EnumXxx = EnumXxx
+    //#endregion
+
+    //#region State
+    protected xxxSignal = signal<...>(...)
+    //#endregion
+
+    //#region Computed
+    protected xxx = computed(() => ...)
+    //#endregion
+
+    // Lifecycle hooks & Methods
+}
+```
+
+**無 inject 的元件（Dumb Component）：**
+```typescript
+export class XxxComponent {
+    // Inputs
+    value = input.required<string>()
+
+    // Two-way binding
+    selected = model<number | null>(null)
+
+    // Outputs
+    change = output<void>()
+
+    // Constants & Enums
+    protected readonly PrivilegeCodes = PrivilegeCodes
+    protected readonly EnumXxx = EnumXxx
+
+    // 內部狀態
+    protected xxxSignal = signal<...>(...)
+
+    // Computed & Methods
+}
+```
+
 ### 設計原則
 - **單一職責 (SRP)**：每個函數、組件只負責一件事
 - 邏輯抽取至 `libs/services`，UI 抽取至 `libs/components`

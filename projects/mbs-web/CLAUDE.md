@@ -167,3 +167,40 @@ feature/
 
 ### 語言
 - 使用正體中文撰寫註解與文件
+
+## API 錯誤處理
+
+HTTP Interceptor (`@core/interceptors/http.interceptor.ts`) 會統一處理 API 錯誤回應。
+
+### 預設行為
+當 API 回傳非 200 的錯誤碼時，Interceptor 會：
+1. 拋出 `HttpErrorResponse`
+2. 自動跳出系統 dialog 顯示錯誤訊息（透過 `AppDialogService`）
+
+### 特殊錯誤碼處理
+以下錯誤碼有特殊處理邏輯，**不會**跳出系統 dialog：
+
+| 錯誤碼 | 說明 | 處理方式 |
+|--------|------|----------|
+| `200` | 成功 | 正常回傳 |
+| `100012` | 特殊狀態 | 不拋錯誤，正常回傳 |
+| `110004` | Token 失效 | 跳 dialog + 登出 |
+| `100001` | 連線參數錯誤 | 跳 dialog + 登出 |
+| `170003` | 客戶已存在 | 不跳 dialog，由呼叫端自行處理 |
+
+### 呼叫端自行處理錯誤
+若需要在呼叫端處理特定錯誤碼（如 `170003`），需：
+1. 在 Interceptor 的 `handleError` 中新增該錯誤碼的特例（不跳 dialog）
+2. 在 Service 呼叫處的 `error` callback 中判斷 `error.error?.code` 並處理
+
+```typescript
+// 範例：處理 170003 客戶已存在
+this.service.createClient(request).subscribe({
+    next: response => { /* 成功處理 */ },
+    error: (error: HttpErrorResponse) => {
+        if (error.error?.code === 170003) {
+            // 自訂處理邏輯
+        }
+    },
+})
+```

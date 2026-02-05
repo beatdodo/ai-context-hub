@@ -14,6 +14,35 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ---
 
+## Commit 規則
+
+**格式**：
+```
+<type>(<scope>): <description>
+```
+
+**type**：
+| type | 說明 |
+|------|------|
+| `feat` | 新功能 |
+| `fix` | 修復 bug |
+| `refactor` | 重構（不影響功能） |
+| `style` | 樣式調整（不影響邏輯） |
+| `chore` | 雜務（建置、設定等） |
+| `docs` | 文件 |
+| `perf` | 效能優化 |
+
+**範例**：
+```
+feat(會員): 新增登入功能
+fix(聊天): 修正訊息無法顯示問題
+refactor(禮品卡): 重構掛單邏輯
+style(首頁): 調整 banner 間距
+chore(版本號): 更新至 v1.2.0
+```
+
+---
+
 ## 情境
 
 ### 技術棧
@@ -115,7 +144,53 @@ export class CardComponent {
 2. **次要**：PrimeNG 主題變數覆寫
 3. **最後**：自定義 `.scss`（僅在前兩者無法實現時）
 
-### 6. 程式碼風格與註解規範
+### 6. API 格式與錯誤處理
+
+#### 回應格式
+後端 API 統一回傳格式為 `{code: number, data: XXX}`：
+- `APIResponse<T>` - 一般回應
+- `APIPaginationResponse<T>` - 含分頁資訊的回應
+
+定義 model 時只需定義 `data` 的格式，避免重複定義外層結構。
+
+**Service 回傳處理**：
+- `APIResponse<T>`：透過 `pipe(map(v => v.data))` 取出 data，回傳 `Observable<T>`
+- `APIPaginationResponse<T>`：照實回傳，因為 Component 需要分頁資訊
+
+```typescript
+import { map } from 'rxjs'
+
+// 一般回應：取出 data 後回傳
+getFeature(id: number): Observable<Feature> {
+    return this.http.get<APIResponse<Feature>>(`/api/feature/${id}`).pipe(
+        map(res => res.data)
+    )
+}
+
+// 分頁回應：照實回傳，保留分頁資訊
+getFeatureList(page: number): Observable<APIPaginationResponse<Feature[]>> {
+    return this.http.get<APIPaginationResponse<Feature[]>>(`/api/feature?page=${page}`)
+}
+```
+
+#### 錯誤處理
+HTTP Interceptor 統一處理 API 錯誤回應。當 API 回傳非成功的錯誤碼時：
+1. 拋出 `HttpErrorResponse`
+2. 自動跳出系統 dialog 顯示錯誤訊息
+
+若需在呼叫端處理特定錯誤碼，需在 `error` callback 中判斷 `error.error?.code`：
+```typescript
+this.service.createData(request).subscribe({
+    next: response => { /* 成功處理 */ },
+    error: (error: HttpErrorResponse) => {
+        if (error.error?.code === 170003) {
+            // 自訂處理邏輯
+        }
+    },
+})
+```
+
+### 7. 程式碼風格與註解規範
 
 #### 基本風格
 - **TypeScript**：不使用分號（ASI 自動插入）
@@ -234,12 +309,61 @@ protected cartTotal = computed(() =>
 //#endregion
 ```
 
-### 7. 設計與體驗規範（UX/UI/Animation）
+### 8. 設計與體驗規範（UX/UI/Animation）
 
 #### 核心原則
+- **Mobile First**：90% 用戶透過手機訪問，所有設計與開發皆以行動裝置為優先
 - **高品質美感設計**：注重視覺層次、間距、配色與細節打磨
 - **流暢動畫體驗**：所有互動都應有適當的視覺回饋，但不得影響效能
 - **極致 UX 思維**：以使用者為中心，減少認知負擔，提升操作效率
+
+#### Mobile First 設計原則
+
+**開發流程**：
+1. **先設計手機版** → 再擴展至平板 → 最後處理桌面版
+2. **Tailwind CSS 斷點**：預設樣式即為手機版，使用 `md:`, `lg:` 往上疊加
+3. **測試順序**：手機 Chrome DevTools → 實機測試 → 平板 → 桌面
+
+**CSS 撰寫規範**：
+```html
+<!-- ✅ Mobile First：預設手機，往上擴展 -->
+<div class="px-4 py-6 md:px-8 md:py-10 lg:px-16">
+    <h1 class="text-xl md:text-2xl lg:text-4xl">標題</h1>
+    <div class="flex flex-col md:flex-row gap-4">...</div>
+</div>
+
+<!-- ❌ Desktop First：預設桌面，往下覆蓋（禁止） -->
+<div class="px-16 py-10 sm:px-4 sm:py-6">...</div>
+```
+
+**觸控體驗**：
+- 所有可點擊元素最小尺寸 **44x44px**（Apple HIG / Material Design 標準）
+- 按鈕間距至少 **8px**，避免誤觸
+- 表單輸入框高度至少 **48px**，方便手指點擊
+- 避免依賴 hover 狀態顯示重要資訊
+
+**效能考量**：
+- 圖片使用響應式載入（`srcset` 或 `<picture>`）
+- 首屏內容優先載入，非關鍵資源延遲載入
+- 動畫在低效能裝置上自動降級或停用
+- 避免大量 DOM 操作造成卡頓
+
+**手勢支援**：
+- 支援原生滑動手勢（避免攔截 touch 事件）
+- 長列表支援慣性滾動（`-webkit-overflow-scrolling: touch`）
+- 考慮單手操作的拇指熱區（重要按鈕放在畫面下半部）
+
+**常見斷點**：
+```typescript
+// Tailwind 預設斷點
+const BREAKPOINTS = {
+    sm: '640px',   // 大型手機（橫向）
+    md: '768px',   // 平板
+    lg: '1024px',  // 小型筆電
+    xl: '1280px',  // 桌面
+    '2xl': '1536px' // 大螢幕
+} as const
+```
 
 #### 動畫效能規範
 ✅ **推薦做法：**
@@ -480,11 +604,12 @@ export class GoodComponent {
 - [ ] 註解使用正體中文且語意清晰
 - [ ] 沒有過時、錯誤或無意義的註解
 
-**樣式與設計：**
+**樣式與設計（Mobile First）：**
 - [ ] 優先使用 Tailwind Classes 而非自定義 `.scss`
+- [ ] **CSS 以手機為預設，使用 `md:`, `lg:` 往上擴展**
 - [ ] 視覺層次清晰，主要與次要操作有明顯區別
 - [ ] 間距與對齊符合設計規範（使用 Tailwind spacing scale）
-- [ ] 響應式設計在各斷點下都能良好呈現
+- [ ] 響應式設計**先在手機上測試**，再驗證平板與桌面
 
 **動畫與效能：**
 - [ ] 動畫僅使用 `transform` 和 `opacity` 屬性

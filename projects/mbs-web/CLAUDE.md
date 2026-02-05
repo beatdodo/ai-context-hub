@@ -32,6 +32,43 @@ npx nx lint <project-name>
 npx nx graph             # 視覺化專案依賴關係
 ```
 
+## Commit 規則
+
+**格式**：
+```
+(<app>) <type>(<scope>): <description>
+```
+
+**app 標示**：
+| 標示 | 說明 |
+|------|------|
+| `(ops)` | 僅影響 mbs-ops |
+| `(admin)` | 僅影響 mbs-admin |
+| `(warehouse)` | 僅影響 mbs-warehouse |
+| `(libs)` | 僅影響共用函式庫 |
+| `(ops, admin)` | 影響多個 app |
+| 無標示 | 全域設定（eslint, tsconfig 等） |
+
+**type**：
+| type | 說明 |
+|------|------|
+| `feat` | 新功能 |
+| `fix` | 修復 bug |
+| `refactor` | 重構（不影響功能） |
+| `style` | 樣式調整（不影響邏輯） |
+| `chore` | 雜務（建置、設定等） |
+| `docs` | 文件 |
+| `perf` | 效能優化 |
+
+**範例**：
+```
+(ops) feat(預約行事曆): 支援平板滾動
+(warehouse) fix(庫存盤點): 修正數量計算錯誤
+(libs) refactor(components): 重構 UserCard 元件
+(admin, ops) chore(版本號): 更新至 v26.02.02
+chore(eslint): 調整 depConstraints 規則
+```
+
 ## 架構說明
 
 ### 應用程式 (apps/)
@@ -43,7 +80,8 @@ Apps 應保持輕量：僅負責路由配置 (Routing)、全域設定 (Config) �
 
 ### 共用函式庫 (libs/)
 - **@mbs/components** - 共用 UI 元件 (Dumb Components)
-- **@mbs/services** - API 呼叫與商業邏輯狀態管理
+- **@mbs/services** - API 呼叫與商業邏輯
+- **@mbs/state** - 多 app 共用的狀態管理邏輯（狀態本身各 app 獨立）
 - **@mbs/models** - TypeScript 介面與型別定義
 - **@mbs/utils** - 工具函式
 - **@mbs/interceptors** - HTTP 攔截器
@@ -53,8 +91,9 @@ Apps 應保持輕量：僅負責路由配置 (Routing)、全域設定 (Config) �
 
 ### 依賴規則 (由 ESLint 強制執行)
 - Apps → Libs（Apps 之間不可互相依賴）
-- UI → service, util, types
-- Service → service, util, types
+- UI → state, service, util, types
+- State → util, types（不可依賴 service，只操作內部狀態）
+- Service → state, service, util, types
 - Util → types
 - Types → 無依賴（最底層）
 
@@ -74,6 +113,7 @@ import { UserCardComponent } from '@mbs/components'
 - 所有組件狀態都要使用 Angular 的 signal 系統
 - 計算屬性使用 `computed()` 來處理派生狀態
 - **禁止**在 `libs` 以外的地方手動訂閱 RxJS（盡量使用 Signal 或 AsyncPipe）
+- `[(ngModel)]` 已支援 Signal 雙向綁定，直接使用 `[(ngModel)]="mySignal"` 即可，不需要分開寫 `[ngModel]` 和 `(ngModelChange)`
 
 ### Angular 20 新語法
 - 使用 `@if {}`, `@for {}` 區塊語法（取代 `*ngIf`, `*ngFor`）
@@ -137,7 +177,8 @@ export class XxxComponent {
 ```
 feature/
 ├── services/
-│   └── feature.service.ts          # API 呼叫（處理 HTTP 請求、資料轉換）
+│   ├── feature.service.ts          # API 呼叫（處理 HTTP 請求、資料轉換）
+│   └── feature-state.service.ts    # 狀態管理（集中管理該功能的 signals）
 ├── utils/
 │   ├── feature-status.util.ts      # 純工具函數（無狀態、無 DI）
 │   └── feature-util.service.ts     # 工具 Service（需要 DI 或有命名空間需求）
@@ -148,9 +189,15 @@ feature/
 
 **命名規則**：
 - API 相關 Service：`xxx.service.ts`
+- 狀態管理 Service：`xxx-state.service.ts`
 - 純工具函數：`xxx.util.ts`（export function）
 - 工具 Service：`xxx-util.service.ts`（@Injectable）
 - 統一使用 `utils/` 資料夾（不使用 `helpers/`）
+
+**Service 放置原則**：
+- 功能專用的 service（含 `xxx-state.service.ts`）放在該功能模組的 `services/` 內
+- 跨 app 共用的 API service 放在 `libs/services`
+- 多 app 共用的狀態管理邏輯放在 `libs/state`（不要混在 `libs/services`）
 
 ### 設計原則
 - **單一職責 (SRP)**：每個函數、組件只負責一件事
@@ -164,12 +211,64 @@ feature/
 
 ### TypeScript
 - 不使用分號（ASI 風格）
+- 每個 function 都必須寫註解，說明其用途
+
+### 命名規則
+
+**檔案命名**：
+| 類型 | 格式 | 範例 |
+|------|------|------|
+| Component | `xxx.component.ts` | `user-card.component.ts` |
+| API Service | `xxx.service.ts` | `user.service.ts` |
+| State Service | `xxx-state.service.ts` | `user-state.service.ts` |
+| 工具 Service | `xxx-util.service.ts` | `date-util.service.ts` |
+| 純工具函數 | `xxx.util.ts` | `format.util.ts` |
+| 介面定義 | `xxx.model.ts` | `user.model.ts` |
+| 路由設定 | `xxx.routes.ts` | `user.routes.ts` |
+
+**程式碼命名**：
+| 類型 | 格式 | 範例 |
+|------|------|------|
+| Enum | `EnumXxx` | `EnumStatus`, `EnumRole` |
+| Interface | `Xxx`（不加 `I` 前綴） | `User`, `ApiResponse` |
+| Type Alias | 語意化名稱，視情況加 `Type` 後綴 | `Status`, `UserIdType` |
+| Constant | `UPPER_SNAKE_CASE` | `API_BASE_URL`, `MAX_RETRY` |
+| Signal | 語意化名稱（不需加 `Signal` 後綴） | `isLoading`, `userList` |
 
 ### 語言
 - 使用正體中文撰寫註解與文件
 
-## API 錯誤處理
+## API 格式與錯誤處理
 
+### 回應格式
+後端 API 統一回傳格式為 `{code: number, data: XXX}`，已定義在 `@mbs/models`：
+- `APIResponse<T>` - 一般回應
+- `APIPaginationResponse<T>` - 含分頁資訊的回應
+
+定義 model 時只需定義 `data` 的格式，避免重複定義外層結構。使用時直接用 `APIResponse<T>` 泛型，不需額外定義 type alias。
+
+**Service 回傳處理**：
+- `APIResponse<T>`：透過 `pipe(map(v => v.data))` 取出 data，回傳 `Observable<T>`，讓 Component 不用再多取一層
+- `APIPaginationResponse<T>`：照實回傳，因為 Component 需要分頁資訊
+
+```typescript
+import { APIResponse, APIPaginationResponse } from '@mbs/models'
+import { map } from 'rxjs'
+
+// 一般回應：取出 data 後回傳
+getFeature(id: number): Observable<Feature> {
+    return this.http.get<APIResponse<Feature>>(`/api/feature/${id}`).pipe(
+        map(res => res.data)
+    )
+}
+
+// 分頁回應：照實回傳，保留分頁資訊
+getFeatureList(page: number): Observable<APIPaginationResponse<Feature[]>> {
+    return this.http.get<APIPaginationResponse<Feature[]>>(`/api/feature?page=${page}`)
+}
+```
+
+### 錯誤處理
 HTTP Interceptor (`@core/interceptors/http.interceptor.ts`) 會統一處理 API 錯誤回應。
 
 ### 預設行為
